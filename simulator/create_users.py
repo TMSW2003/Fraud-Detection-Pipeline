@@ -1,5 +1,6 @@
 import random, uuid
 
+
 CITIES = [
     {"city": "New York",     "lat": 40.71, "lon": -74.01, "weight": 20},
     {"city": "Los Angeles",  "lat": 34.05, "lon": -118.24, "weight": 15},
@@ -20,28 +21,38 @@ CITIES = [
 
 weights = [c["weight"] for c in CITIES]
 
-
+user_archetype = ['predictable spender', 'average spender', 'highly volatile spender']
 
 class UserProfile:
-    def __init__(self, user_id):
+    def __init__(self, user_id, rng):
         self.user_id = user_id
-        self.city = random.choices(CITIES, weights=weights, k=1)[0] #choose cities proportional to their weights
-        self.card_id = str(uuid.uuid4()) 
-        self.avg_daily_spend = random.uniform(10, 2000)  
-        device_count = random.choice([1, 2])  # Randomly assign 1 or 2 devices per user
-        self.device_id = [str(uuid.uuid4()) for _ in range(device_count)]
-        self.transactions_per_day = int(random.uniform(1, 20))
-        self.avg_transaction_amount = random.uniform(0, 1500)
+        self.archetype = rng.choices(user_archetype, weights = [0.3, 0.5, 0.2], k = 1)[0] #assign archetype with weighted probabilities
+        match self.archetype:
+            case 'predictable spender':
+                self.spend_sigma = 0.1
+            case 'average spender':
+                self.spend_sigma = 0.5
+            case 'highly volatile spender':
+                self.spend_sigma = 1.0
+        self.city = rng.choices(CITIES, weights = weights, k = 1)[0] #choose cities proportional to their weights
+        self.card_id = f"card_{user_id}_001" 
+        self.avg_daily_spend = rng.uniform(10, 2000)  
+        device_count = rng.choice([1, 2])  # Randomly assign 1 or 2 devices per user
+        self.device_id = [f"device_{user_id}_{j+1:02d}" for j in range(device_count)]
+        self.transactions_per_day = int(rng.uniform(1, 20))
+        self.avg_transaction_amount = self.avg_daily_spend / self.transactions_per_day
 
     def __repr__(self):
-        return f"User ID: {self.user_id}\n\n City: {self.city['city']}\n Card ID: {self.card_id}\n Average Daily Spend: {self.avg_daily_spend:.2f}\n Device ID: {self.device_id}\n Transactions/day: {self.transactions_per_day}\n Average Transaction Amount: {self.avg_transaction_amount:.2f}\n\n"
+        return f"user_id: {self.user_id}, archetype: {self.archetype}, city: {self.city['city']}, card_id: {self.card_id}, avg_daily_spend: {self.avg_daily_spend:.2f}, device_id: {self.device_id}, transactions_per_day: {self.transactions_per_day}, avg_transaction_amount: {self.avg_transaction_amount:.2f}"
 
-num_users = 10
-def create_user_profiles(num_users):
+def create_user_profiles(num_users, rng):
     users = []
     for i in range(num_users):
         user_id = f"user_{i+1}"
-        users.append(UserProfile(user_id))
-    print(users)
+        users.append(UserProfile(user_id, rng))
+    return(users)
 
-create_user_profiles(num_users)
+if __name__ == "__main__":
+    users = create_user_profiles(10, random.Random(42))
+    for user in users:
+        print(user)
