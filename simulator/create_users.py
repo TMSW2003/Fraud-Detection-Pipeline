@@ -1,4 +1,4 @@
-import random, uuid
+import random
 
 
 CITIES = [
@@ -24,16 +24,24 @@ weights = [c["weight"] for c in CITIES]
 user_archetype = ['predictable spender', 'average spender', 'highly volatile spender']
 
 class UserProfile:
+    '''
+    Class representing a user profile with attributes that 
+    define their spending behavior and transaction patterns
+    '''
+
     def __init__(self, user_id, rng):
         self.user_id = user_id
         self.archetype = rng.choices(user_archetype, weights = [0.3, 0.5, 0.2], k = 1)[0] #assign archetype with weighted probabilities
+        
+        #spend_sigma set based on archetype to control variability in transaction amounts
         match self.archetype:
             case 'predictable spender':
-                self.spend_sigma = 0.1
+                self.spend_sigma = 0.1 #low spend_sigma means transaction amounts will be close to avg_transaction_amount
             case 'average spender':
                 self.spend_sigma = 0.5
             case 'highly volatile spender':
-                self.spend_sigma = 1.0
+                self.spend_sigma = 1.5 #high spend_sigma means transaction amounts will vary widely around avg_transaction_amount
+        
         self.city = rng.choices(CITIES, weights = weights, k = 1)[0] #choose cities proportional to their weights
         self.card_id = f"card_{user_id}_001" 
         self.avg_daily_spend = rng.uniform(10, 2000)  
@@ -45,7 +53,12 @@ class UserProfile:
     def __repr__(self):
         return f"user_id: {self.user_id}, archetype: {self.archetype}, city: {self.city['city']}, card_id: {self.card_id}, avg_daily_spend: {self.avg_daily_spend:.2f}, device_id: {self.device_id}, transactions_per_day: {self.transactions_per_day}, avg_transaction_amount: {self.avg_transaction_amount:.2f}"
 
-def create_user_profiles(num_users, rng):
+def create_user_profiles(num_users: int, rng: random.Random) -> list[UserProfile]:
+    ''' 
+    Creates and returns list of user profiles. 
+    Each user profile is an instance of the UserProfile class, 
+    which includes attributes that define user spending behavior
+    '''
     users = []
     for i in range(num_users):
         user_id = f"user_{i+1}"
