@@ -1,41 +1,38 @@
 import random 
-import time 
-import uuid 
 import math 
-import csv
 import pandas as pd
 
 from datetime import datetime, timedelta
 from create_users import create_user_profiles, UserProfile
-from fraud import create_fraud
-
+from fraud import create_fraud, rapid_burst_fraud
+from id_generators import generate_transaction_id
 
 rng = random.Random(42)  # Set fixed seed for reproducibility
-user_list = create_user_profiles(10, rng) 
-fraud_probability = 0.20 
+user_list = create_user_profiles(100, rng) 
+fraud_probability = 0.02 
 fraud_types = ['impossible travel', 'rapid burst', 'high amount', 'new device'] 
 
-def generate_transaction(user: UserProfile , timestamp: datetime, rng: random.Random, txn_number: int) -> dict:
-    '''
-    Generates a single transaction for a given user at a specific timestamp.
-    '''
+def generate_transaction(user: UserProfile , current_time: datetime, rng: random.Random) -> dict:
+    '''Generates a single transaction for a given user at a specific timestamp.'''
     
     #Lognormal distribution used to simulate txn amounts based on average txn amount and spend_sigma.
     amount_mu = math.log(user.avg_transaction_amount)
     simulated_amount = rng.lognormvariate(amount_mu, user.spend_sigma)
     
     return {
-        'transaction_id': f"txn_{txn_number:08d}",
+        'transaction_id': generate_transaction_id(),
         'user_id': user.user_id,        
         'amount': round(simulated_amount, 2),  
-        'timestamp': timestamp.isoformat(),
+        'timestamp': current_time.isoformat(timespec="microseconds"),
         'city': user.city['city'],
         'lat': user.city['lat'],
         'lon': user.city['lon'],
         'device_id': rng.choice(user.device_id),
         'card_id': user.card_id,
         'is_fraud': False,
-        'fraud_type': None
+        'fraud_type': None,
+        'burst_id': None,
+        'burst_index': None
     }
 
 def generate_transactions(user_list: list[UserProfile], rng: random.Random) -> list[dict]:
@@ -45,26 +42,40 @@ def generate_transactions(user_list: list[UserProfile], rng: random.Random) -> l
     transaction attributes altered to reflect fraud type .
     '''
     start_time = datetime(2026, 6, 1, 12, 0, 0) #Simulation start time
-    end_time = start_time + timedelta(hours=5) #Simulation end time 
+    end_time = start_time + timedelta(hours=24) #Simulation end time 
+    
     transactions = []
+    last_txn_by_user = {user.user_id: None for user in user_list} 
     current_time = start_time
+    total_daily_txns = sum(user.transactions_per_day for user in user_list)
+    avg_gap_seconds  = 86400 / total_daily_txns
     
     while current_time < end_time:
+        
         user_weights = [user.transactions_per_day for user in user_list] #Weight users based on avg txns/day
         user = rng.choices(user_list, weights=user_weights, k=1)[0] 
         
-        last_user_transactions = [t for t in transactions if t['user_id'] == user.user_id] 
-        txn_number = len(transactions)+1
-        
-        transaction = generate_transaction(user, current_time, rng, txn_number) 
+        previous_txn = last_txn_by_user.get(user.user_id)
+        transaction = generate_transaction(user, current_time, rng) 
 
         if rng.random() < fraud_probability: 
-            fraud_type = rng.choice(["high amount", "new device", "impossible travel"]) 
-            transaction = create_fraud(transaction, user, fraud_type, rng, last_user_transactions) #Alter txn attributes based on fraud type 
+            fraud_type = rng.choice(fraud_types) 
+            
+            if fraud_type == "rapid burst":
+                burst = rapid_burst_fraud(transaction, user, rng) 
+                last_txn_by_user[user.user_id] = burst[-1]
+                transactions.extend(burst)
+                last_burst_time = transactions[-1]["timestamp"] 
+                current_time = datetime.fromisoformat(last_burst_time) + timedelta(seconds = rng.expovariate(1/avg_gap_seconds))
+
+                continue
+            else:
+                transaction = create_fraud(transaction, user, fraud_type, rng, previous_txn) #Alter txn attributes based on fraud type 
 
         transactions.append(transaction)
-        gap_seconds = rng.randint(30, 300)
-        current_time = current_time + timedelta(seconds=gap_seconds)
+        last_txn_by_user[user.user_id] = transaction
+        gap_seconds = rng.expovariate(1/avg_gap_seconds)
+        current_time += timedelta(seconds=gap_seconds)
 
     return transactions
 
@@ -77,6 +88,10 @@ if __name__ == "__main__":
     df = pd.DataFrame(txns)
     df.to_csv("results.csv", index=False)
     print("\nSuccessfully exported simulation results to results.csv")
+
+    profile = pd.DataFrame([user.to_dict() for user in user_list])
+    profile.to_csv("user_profiles.csv", index=False)
+    print("\nSuccessfully exported user profiles to user_profiles.csv")
 
 
 

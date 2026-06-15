@@ -40,7 +40,7 @@ class UserProfile:
             case 'average spender':
                 self.spend_sigma = 0.5
             case 'highly volatile spender':
-                self.spend_sigma = 1.5 #high spend_sigma means transaction amounts will vary widely around avg_transaction_amount
+                self.spend_sigma = 1.0 #high spend_sigma means transaction amounts will vary widely around avg_transaction_amount
         
         self.city = rng.choices(CITIES, weights = weights, k = 1)[0] #choose cities proportional to their weights
         self.card_id = f"card_{user_id}_001" 
@@ -50,6 +50,21 @@ class UserProfile:
         self.transactions_per_day = int(rng.uniform(1, 20))
         self.avg_transaction_amount = self.avg_daily_spend / self.transactions_per_day
 
+    def to_dict(self):
+        return {
+            "user_id": self.user_id,
+            "archetype": self.archetype,
+            "spend_sigma": self.spend_sigma,
+            "city": self.city["city"],
+            "lat": self.city["lat"],
+            "lon": self.city["lon"],
+            "card_id": self.card_id,
+            "device_ids": "|".join(self.device_id),
+            "avg_daily_spend": round(self.avg_daily_spend, 2),
+            "transactions_per_day": self.transactions_per_day,
+            "avg_transaction_amount": round(self.avg_transaction_amount, 2),
+        }
+    
     def __repr__(self):
         return f"user_id: {self.user_id}, archetype: {self.archetype}, city: {self.city['city']}, card_id: {self.card_id}, avg_daily_spend: {self.avg_daily_spend:.2f}, device_id: {self.device_id}, transactions_per_day: {self.transactions_per_day}, avg_transaction_amount: {self.avg_transaction_amount:.2f}"
 
